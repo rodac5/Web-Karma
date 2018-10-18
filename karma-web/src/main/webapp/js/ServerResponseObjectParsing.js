@@ -45,7 +45,6 @@ function parse(data) {
 			}
 		}
 	});
-
 	if (isError)
 		return false;
 
@@ -100,7 +99,7 @@ function parse(data) {
 					});
 
 					var headerDiv = $("<div>").addClass("propertiesHeader");
-					var label1 = $("<label>").html("Name:&nbsp;");
+					var label1 = $("<label>").html("Model Name:&nbsp;");
 					var graphLabel = $("<span>")
 						.text(fetchExistingModelLabel(worksheetId))
 						.addClass("edit")
@@ -212,6 +211,72 @@ function parse(data) {
 					headerDiv.append(label1);
 					headerDiv.append(baseURILabel);
 
+					var sep = $("<span>").html("&nbsp;|&nbsp;");
+					var label1 = $("<label>").html("Github URL:&nbsp;");
+					var githubUrlLabel = $("<span>")
+						.text("disabled")
+						.addClass("edit")
+						.addClass("githubUrlLabel")
+						.attr("id", "txtGithubUrl_" + worksheetId)
+						.editable({
+							type: 'text',
+							pk: 1,
+							savenochange: false,
+							defaultValue: "disabled",
+							url: function(params) {
+								var d = new $.Deferred();
+								newValue = params.value;
+								if(newValue == "" || newValue == "disabled") {
+									return d.resolve();
+								} else {
+									validated = Settings.getInstance().validateGithubSettings(newValue);
+									if(validated["code"])
+										return d.resolve();
+									else
+										return d.reject(validated["msg"]);
+								}
+							},
+							success: function(response, newValue) {
+								console.log("Set new value:" + newValue);
+								var setNewValue = newValue;
+								if(newValue == "" || newValue == "disabled") {
+									newValue = "disabled";
+									setNewValue = "";
+								}
+								githubUrlLabel.text(newValue);
+								var worksheetProps = new Object();
+								worksheetProps["hasPrefix"] = false;
+								worksheetProps["hasBaseURI"] = false;
+								worksheetProps["baseURI"] = "";
+								worksheetProps["graphLabel"] = "";
+								worksheetProps["GithubURL"] = setNewValue;
+								worksheetProps["hasServiceProperties"] = false;
+								worksheetProps["hasGithubURL"] = true;
+								var info = generateInfoObject(worksheetId, "", "SetWorksheetPropertiesCommand");
+
+								var newInfo = info['newInfo']; // for input parameters
+								newInfo.push(getParamObject("properties", worksheetProps, "other"));
+								info["newInfo"] = JSON.stringify(newInfo);
+								showWaitingSignOnScreen();
+								var returned = sendRequest(info);
+							},
+							error: function(response, newValue) {
+								return response;
+							},
+							title: 'Enter Github URL'
+						})
+						.on('shown', function(e, editable) {
+							console.log(editable);
+							var oldValue = githubUrlLabel.html();
+							if(oldValue == "disabled" || oldValue == "Empty")
+								oldValue = "";
+							editable.input.$input.val(oldValue);
+						});
+
+					headerDiv.append(sep);
+					headerDiv.append(label1);
+					headerDiv.append(githubUrlLabel);
+
 					var mapDiv = $("<div>").addClass("toggleMapView");
 					if (googleEarthEnabled) {
 						mapDiv
@@ -295,6 +360,7 @@ function parse(data) {
 			});
 		} else if (element["updateType"] == "WorksheetDeleteUpdate") {
 			var worksheetPanel = $("div#" + element["worksheetId"] + "_row");
+			D3ModelManager.getInstance().deleteModel(element["worksheetId"]);
 			worksheetPanel.remove();
 			$.sticky("Worksheet deleted");
 		} else if (element["updateType"] == "WorksheetHeadersUpdate") {
@@ -498,6 +564,26 @@ function parse(data) {
 			if (element["graphLabel"]) {
 				$("#txtGraphLabel_" + element["worksheetId"]).text(element["graphLabel"]);
 			}
+
+			// If we find GithubURL, we will save it in the cookie and set the label appropriately
+			if (element["GithubURL"]) {
+                // if we don't have the github auth credentials for the repo, then add a "(disabled)" to the url
+                // to indicate that the user has to set it in github settings.
+                if (Settings.getInstance().getGithubAuth())
+                    $("#txtGithubUrl_" + element["worksheetId"]).text(element["GithubURL"]);
+                else
+                    $("#txtGithubUrl_" + element["worksheetId"]).text(element["GithubURL"] + " (disabled)");
+			}
+
+			// If we find GithubBranch, store it in the cookie
+			if (element["GithubBranch"]) {
+                $.cookie("github-branch-" + element["worksheetId"], element["GithubBranch"]);
+			}
+		} else if(element["updateType"] == "PublishGithubUpdate") {
+			if (Settings.getInstance().getGithubAuth())
+                $("#txtGithubUrl_" + element["worksheetId"]).text(element["url"]);
+            else
+                $("#txtGithubUrl_" + element["worksheetId"]).text(element["url"] + " (disabled)");
 
 		} else if (element["updateType"] == "WorksheetSuperSelectionListUpdate") {
 			var status;
@@ -731,6 +817,7 @@ function parse(data) {
 function processHistoryCommand(command) {
 	var title = command.title;
 	var spanClass = "";
+	var spanTitle = "";
 	if(title == "Python Transformation") {
 		spanClass = "glyphicon-wrench";
 	} else if(title == "Set Semantic Type") {
@@ -761,10 +848,16 @@ function processHistoryCommand(command) {
 		spanClass = "glyphicon-compressed";
 	} else if(title == "Change Node") {
 		spanClass = "glyphicon-random";
+	} else if(title == "Add Link") {
+		spanClass = "glyphicon-link";
+		spanTitle = "Add: ";
+	} else if(title == "Delete Link") {
+		spanClass = "Delete Link";
+		spanTitle = "Delete: ";
 	}
 	
 	if(spanClass != "") {
-		title = "<span class=\"glyphicon command_glyphicon " + spanClass + "\" aria-hidden=\"true\" title=\"" + title + "\"></span>";
+		title = "<span class=\"glyphicon command_glyphicon " + spanClass + "\" aria-hidden=\"true\" title=\"" + title + "\"></span>" + spanTitle;
 	}
 	//glyphicon glyphicon-scissors
 	
@@ -817,6 +910,7 @@ function addColumnHeadersRecurse(worksheetId, columns, headersTable, isOdd) {
 
 	var columnWidths = [];
 	$.each(columns, function(index, column) {
+
 		var type = column['hNodeType'].toLowerCase();
 		var status = column['status'];
 		var error = column['onError'];
@@ -840,11 +934,19 @@ function addColumnHeadersRecurse(worksheetId, columns, headersTable, isOdd) {
 			td.data("pythonTransformation", column["pythonTransformation"]);
 			isPyTransform = true;
 		}
+		if(column["selectionPyCode"]) {
+			td.data("selectionPyCode",column["selectionPyCode"]);
+		}
 		if (column["previousCommandId"]) {
 			td.data("previousCommandId", column["previousCommandId"]);
 		}
 		if (column["columnDerivedFrom"]) {
 			td.data("columnDerivedFrom", column["columnDerivedFrom"]);
+		}
+
+
+		if(column["status"]) {
+			td.addClass("htable-selected");
 		}
 
 		if (column["hasNestedTable"]) {
@@ -956,7 +1058,21 @@ function addWorksheetDataRecurse(worksheetId, rows, dataTable, isOdd) {
 					.attr('id', cell["nodeId"])
 					.data("expandedValue", cell["expandedValue"])
 					.attr("title", cell["expandedValue"]) //for tooltip
-					.click(tableCellClick);
+					.click(function(e) {
+						if (!dataDiv3.hasClass("editable")) {
+							dataDiv3.editable({
+								type: 'text',
+								success: function(response, newValue) {
+									console.log("Set new value:" + newValue);
+									submitTableCellEdit(worksheetId, cell["nodeId"], newValue);
+								},
+								showbuttons: 'bottom',
+								mode: 'popup',
+								inputclass: 'worksheetInputEdit'
+							});
+							dataDiv3.editable('toggle');
+						}
+					});
 				
 				dataDiv.append(dataDiv3);
 				td.addClass(cell["columnClass"]);
@@ -967,23 +1083,6 @@ function addWorksheetDataRecurse(worksheetId, rows, dataTable, isOdd) {
 		dataTable.append(rowTr);
 	});
 	return;
-}
-
-function tableCellClick(e) {
-	var dataDiv3 = $(e.target);
-	if (!dataDiv3.hasClass("editable")) {
-		dataDiv3.editable({
-			type: 'text',
-			success: function(response, newValue) {
-				console.log("Set new value:" + newValue);
-				submitTableCellEdit(worksheetId, cell["nodeId"], newValue);
-			},
-			showbuttons: 'bottom',
-			mode: 'popup',
-			inputclass: 'worksheetInputEdit'
-		});
-		dataDiv3.editable('toggle');
-	}
 }
 
 function submitTableCellEdit(worksheetId, nodeId, value) {
@@ -1033,4 +1132,43 @@ function submitSelectedModelNameToBeLoaded() {
 
 	showLoading(worksheetId);
 	var returned = sendRequest(info, worksheetId);
+}
+
+// this function sets the GithubURL in the properties for the current worksheet by calling SetWorksheetPropertiesCommand
+function setGithubURLProperties(githubLabel, worksheetId, newValue) {
+    console.log("Set new value:" + newValue);
+	console.log(newValue);
+	githubLabel.text(newValue);
+	var worksheetProps = new Object();
+	worksheetProps["hasPrefix"] = false;
+	worksheetProps["hasBaseURI"] = false;
+	worksheetProps["graphLabel"] = "";
+	worksheetProps["hasServiceProperties"] = false;
+	worksheetProps["GithubURL"] = newValue;
+	var info = generateInfoObject(worksheetId, "", "SetWorksheetPropertiesCommand");
+
+	var newInfo = info['newInfo']; // for input parameters
+	newInfo.push(getParamObject("properties", worksheetProps, "other"));
+	info["newInfo"] = JSON.stringify(newInfo);
+	showWaitingSignOnScreen();
+	var returned = sendRequest(info);
+}
+
+// this function sets the GithubBranch in the properties for the current worksheet by calling SetWorksheetPropertiesCommand
+function setGithubBranchProperties(worksheetId, newValue) {
+    console.log("Set new value:" + newValue);
+	console.log(newValue);
+	var worksheetProps = new Object();
+	worksheetProps["hasPrefix"] = false;
+	worksheetProps["hasBaseURI"] = false;
+	worksheetProps["graphLabel"] = "";
+	worksheetProps["hasServiceProperties"] = false;
+	worksheetProps["GithubBranch"] = newValue;
+	var info = generateInfoObject(worksheetId, "", "SetWorksheetPropertiesCommand");
+
+	var newInfo = info['newInfo']; // for input parameters
+	newInfo.push(getParamObject("properties", worksheetProps, "other"));
+	info["newInfo"] = JSON.stringify(newInfo);
+	showWaitingSignOnScreen();
+	var returned = sendRequest(info);
 }

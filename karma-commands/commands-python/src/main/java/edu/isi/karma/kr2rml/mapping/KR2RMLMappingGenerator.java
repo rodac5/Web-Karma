@@ -43,6 +43,10 @@ import org.jgrapht.graph.DirectedWeightedMultigraph;
 import org.json.JSONArray;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import edu.isi.karma.config.ModelingConfiguration;
+import edu.isi.karma.config.ModelingConfigurationRegistry;
+import edu.isi.karma.webserver.ContextParametersRegistry;
+import edu.isi.karma.webserver.ServletContextParameterMap;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -254,6 +258,22 @@ public class KR2RMLMappingGenerator {
 				TemplateTermSet typeTermSet = new TemplateTermSet();
 				typeTermSet.addTemplateTermToSet(typeTerm);
 				subj.addRdfsType(typeTermSet);
+
+				ServletContextParameterMap contextParameters = ContextParametersRegistry.getInstance().getContextParameters(workspace.getContextId());
+				ModelingConfiguration modelingConfiguration = ModelingConfigurationRegistry.getInstance().register(contextParameters.getId());
+				if(modelingConfiguration.getR2rmlExportSuperClass())
+				{
+					OntologyManager ontMgr = workspace.getOntologyManager();
+					HashMap<String,Label> superClassLabelsMap = ontMgr.getSuperClasses(node.getLabel().getUri(), true);
+					for(String key: superClassLabelsMap.keySet())
+					{
+						Label superClassLabel = superClassLabelsMap.get(key);
+						StringTemplateTerm supertypeTerm = new StringTemplateTerm(superClassLabel.getUri(), false);
+						TemplateTermSet supertypeTermSet = new TemplateTermSet();
+						supertypeTermSet.addTemplateTermToSet(supertypeTerm);
+						subj.addRdfsType(supertypeTermSet);
+					}
+				}
 				r2rmlMapping.getSubjectMapIndex().put(node.getId(), subj);
 				
 
@@ -401,7 +421,12 @@ public class KR2RMLMappingGenerator {
 						TemplateTermSet rdfLiteralTypeTermSet = new TemplateTermSet();
 						rdfLiteralTypeTermSet.addTemplateTermToSet(rdfLiteralTypeTerm);
 						
-						ObjectMap objMap = new ObjectMap(target.getId(), termSet, rdfLiteralTypeTermSet);
+						String language = lnode.getLanguage();
+						StringTemplateTerm languageTerm = new StringTemplateTerm(language, false);
+						TemplateTermSet languageTermSet = new TemplateTermSet();
+						languageTermSet.addTemplateTermToSet(languageTerm);
+						
+						ObjectMap objMap = new ObjectMap(target.getId(), termSet, rdfLiteralTypeTermSet, languageTermSet);
 						poMap.setObject(objMap);
 						
 						// Create the predicate
@@ -430,7 +455,12 @@ public class KR2RMLMappingGenerator {
 						TemplateTermSet rdfLiteralTypeTermSet = new TemplateTermSet();
 						rdfLiteralTypeTermSet.addTemplateTermToSet(rdfLiteralTypeTerm);
 
-						ObjectMap objMap = new ObjectMap(hNodeId, termSet, rdfLiteralTypeTermSet);
+						String language = cnode.getLanguage();
+						StringTemplateTerm languageTerm = new StringTemplateTerm(language, false);
+						TemplateTermSet languageTermSet = new TemplateTermSet();
+						languageTermSet.addTemplateTermToSet(languageTerm);
+						
+						ObjectMap objMap = new ObjectMap(hNodeId, termSet, rdfLiteralTypeTermSet, languageTermSet);
 						poMap.setObject(objMap);
 						
 						// Create the predicate

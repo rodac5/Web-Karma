@@ -1229,6 +1229,12 @@ var OrganizeColumnsDialog = (function() {
 			var list = $("<ol>").addClass("dd-list");
 			outer.append(list);
 			$.each(json, function(i, element) {
+				if(!element.visible)
+					element.hideable = true;
+
+				//make all elements hideable
+				element.hideable = true;
+
 				var li = $("<li>").addClass("dd-item")
 					.attr("data-name", element.name)
 					.attr("data-id", element.id)

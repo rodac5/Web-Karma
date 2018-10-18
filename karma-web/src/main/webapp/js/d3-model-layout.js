@@ -1,6 +1,8 @@
-D3ModelLayout = function(p_htmlElement, p_cssClass) {
+D3ModelLayout = function(p_htmlElement, p_cssClass, p_width, p_worksheetId) {
 	var htmlElement = p_htmlElement;
 	var cssClass = p_cssClass;
+	var htmlWidth = p_width;
+	var worksheetId = p_worksheetId;
 
 	//var padding = 35;
 	var rightPanelWidth = parseInt($("." + cssClass).css("width"));
@@ -199,7 +201,9 @@ D3ModelLayout = function(p_htmlElement, p_cssClass) {
 
 	var drag = force.drag()
 		.on("dragstart", function(d) {
-			if (!d.outside.isOutside || d.noLayer){
+			if(d.type == "anchor") {
+				d3.select(this).classed("fixed", d.fixed = false);
+			} else if(!d.outside.isOutside || d.noLayer){
 	  			d3.select(this).classed("fixed", d.fixed = true);
 			}
 // 			console.log(JSON.stringify(d));
@@ -226,17 +230,18 @@ D3ModelLayout = function(p_htmlElement, p_cssClass) {
 				// labelForce.start();
 			}
 	  	})
-	    .on("dragend", function(d) {
+	  	.on("dragend", function(d) {
 	    	if(d.isTemporary) {
 	    		console.log("DragEnd of TemporaryLink")
 	    		originalNode = d.original;	
-	    		d3.select(event.target).call(function(d) {
+	    		var targetEvent = d3.event.sourceEvent;
+	    		d3.select(targetEvent.target).call(function(d) {
 	    			if(d.length > 0) {
 	    				if(d[0].length > 0 && d[0][0].__data__) {
 	    					data = d[0][0].__data__;
 	    					if(data.node) {
 	    						if(nodeDragDropListener != null) {
-	    							nodeDragDropListener(originalNode, data.node.original, event);
+	    							nodeDragDropListener(originalNode, data.node.original, targetEvent);
 	    						}
 	    					}
 	    				} 
@@ -258,7 +263,7 @@ D3ModelLayout = function(p_htmlElement, p_cssClass) {
 	    // 		}
 	    	}
 
-	  		if (!d.outside.isOutside || d.noLayer){
+	  		if (d.type != "anchor" && (!d.outside.isOutside || d.noLayer)){
 	  			d.position.x = d.x;
 	  			d.position.y = d.y;
 	  		}
@@ -281,7 +286,10 @@ D3ModelLayout = function(p_htmlElement, p_cssClass) {
 				return d.source.id + "link" + d.target.id;
 			})
 			.attr("class", function(d) {
-				return "link " + d.linkType + " " + d.linkStatus;
+				var provClass = ""
+				if(d.isProvenance)
+					provClass = " provenanceLink"
+				return "link " + d.linkType + " " + d.linkStatus + provClass;
 			})
 			.attr("fill", "none");
 		links.exit()
@@ -517,6 +525,8 @@ D3ModelLayout = function(p_htmlElement, p_cssClass) {
 			})
 			.on("mouseover", function(d){				
 				var frameId = "";
+				showNodeHelp(worksheetId, d.node.original);
+
 				//console.log(d.content);
 				if (d.type == "nodeLabel"){
 					frameId = "#nodeLabelG" + d.node.id;
@@ -553,6 +563,8 @@ D3ModelLayout = function(p_htmlElement, p_cssClass) {
 					.moveToFront();
 			})
 			.on("mouseout", function(d, i){
+				hideHelp();
+
 				var frameId = "";
 				if (d.type == "nodeLabel"){
 					frameId = "#nodeLabelG" + d.node.id;
@@ -1194,6 +1206,8 @@ D3ModelLayout = function(p_htmlElement, p_cssClass) {
 		tmpN.forEach(function(d, i){
 			var node = {};
 			node.label = d.id;
+			node.rdfsLabel = d.rdfsLabel;
+			node.rdfsComment = d.rdfsComment;
 			node.id = i;
 			node.nodeId = d.nodeId;
 			node.degree = 0;
@@ -1252,6 +1266,11 @@ D3ModelLayout = function(p_htmlElement, p_cssClass) {
 			edge.edgeId = d.id;
 			edge.linkType = d.linkType;
 			edge.linkStatus = d.linkStatus;
+			edge.rdfsLabel = d.rdfsLabel;
+			edge.rdfsComment = d.rdfsComment;
+			edge.isProvenance = false;
+			if(d.isProvenance)
+				edge.isProvenance = d.isProvenance;
 			if (d.id){
 				edgeIdMap[d.id] = i;
 			}
@@ -1382,13 +1401,28 @@ D3ModelLayout = function(p_htmlElement, p_cssClass) {
 		});
 
 		//for (var j = 0; j < 5; j++){
+		var prevChange = -1;
+		var numChances = 0;
 		while (change > 0){
 			//tmpLayerMap is a set of nodes that change their layer in this loop, they will be considered as the base layer for next iteration.
 			//the base layer of first iteration is anchors, their layer is 0.
 			//console.log("baseLayer: ");
 			//baseLayer.print();
 			var nextLayer = new ArrayList();
+
+			if(prevChange == change) {
+				numChances++;
+			} else {
+				numChances = 0;
+			}
+			prevChange = change;
 			change = 0;
+
+			if(numChances > 10) {
+				console.log("In a loop to many time, just breaking out");
+				maxLayer -= 9;
+				break;
+			}
 			//parse all edges
 			tmpLinkData.forEach(function(d){
 				var src = d.source;
@@ -1441,6 +1475,8 @@ D3ModelLayout = function(p_htmlElement, p_cssClass) {
 		nodesData.forEach(function(d){
 			if (d.layer != undefined){
 				if (!d.unAssigned){
+					if(d.layer > maxLayer)
+						d.layer = maxLayer;
 					layerMap[d.layer].push(d.id);
 				}				
 			}		

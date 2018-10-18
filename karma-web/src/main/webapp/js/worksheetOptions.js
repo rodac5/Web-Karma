@@ -26,10 +26,10 @@ function WorksheetOptions(wsId, wsTitle) {
 			}, ]
 		},
 
-		{
-			name: "Set Properties",
-			func: setProperties
-		},
+//		{
+//			name: "Set Properties",
+//			func: setProperties
+//		},
 
 		{
 			name: "Apply R2RML Model",
@@ -65,14 +65,11 @@ function WorksheetOptions(wsId, wsTitle) {
 				name: "RDF",
 				func: publishRDF
 			}, {
-				name: "R2RML Model",
+				name: "Model",
 				func: publishModel
-			}, {
-				name: "Service Model",
-				func: publishServiceModel
-			}, {
-				name: "Report",
-				func: publishReport
+	//		}, {
+	//			name: "Service Model",
+	//			func: publishServiceModel
 			}, {
 				name: "Raw JSON",
 				func: saveAsJson
@@ -109,21 +106,12 @@ function WorksheetOptions(wsId, wsTitle) {
 		}, {
 			name: "divider"
 		}, {
-			name: "Selection",
+			name: "Filters",
 			func: undefined,
 			addLevel: true,
 			levels: [{
-				name: "Add Rows",
+				name: "Add/Edit",
 				func: addRows
-			}, {
-				name: "Intersect Rows",
-				func: intersectRows
-			}, {
-				name: "Subtract Rows",
-				func: subtractRows
-			}, {
-				name: "Invert",
-				func: invertRows
 			}, {
 				name: "Clear",
 				func: undefined,
@@ -168,30 +156,6 @@ function WorksheetOptions(wsId, wsTitle) {
 		PyTransformSelectionDialog.getInstance(wsId, "").show();
 	}
 
-	function intersectRows() {
-		hideDropdown();
-		$("#pyTransformSelectionDialog").data("operation", "Intersect");
-		PyTransformSelectionDialog.getInstance(wsId, "").show();
-	}
-
-	function subtractRows() {
-		hideDropdown();
-		$("#pyTransformSelectionDialog").data("operation", "Subtract");
-		PyTransformSelectionDialog.getInstance(wsId, "").show();
-	}
-
-	function invertRows() {
-		hideDropdown();
-		var headers = getColumnHeadingsForColumn(wsId, "", "GroupBy");
-		var info = generateInfoObject(wsId, headers[0]['HNodeId'], "OperateSelectionCommand");
-		var newInfo = info['newInfo'];
-		newInfo.push(getParamObject("pythonCode", "", "other"));
-		newInfo.push(getParamObject("operation", "Invert", "other"));
-		info["newInfo"] = JSON.stringify(newInfo);
-		showLoading(worksheetId);
-		sendRequest(info, worksheetId);
-	}
-
 	function clearAll() {
 		hideDropdown();
 		var headers = getColumnHeadingsForColumn(wsId, "", "GroupBy");
@@ -232,14 +196,14 @@ function WorksheetOptions(wsId, wsTitle) {
 		return false;
 	}
 
-	function publishReport() {
-		hideDropdown();
-		var info = generateInfoObject(worksheetId, "", "PublishReportCommand");
+	// function publishReport() {
+	// 	hideDropdown();
+	// 	var info = generateInfoObject(worksheetId, "", "PublishReportCommand");
 
-		showLoading(info["worksheetId"]);
-		var returned = sendRequest(info, worksheetId);
-		return false;
-	}
+	// 	showLoading(info["worksheetId"]);
+	// 	var returned = sendRequest(info, worksheetId);
+	// 	return false;
+	// }
 
 	function deleteWorksheet() {
 		if (confirm("Are you sure you wish to delete the worksheet? \nYou cannot undo this operation")) {
@@ -387,8 +351,39 @@ function WorksheetOptions(wsId, wsTitle) {
 		var info = generateInfoObject(worksheetId, "", "GenerateR2RMLModelCommand");
 		info['tripleStoreUrl'] = $('#txtModel_URL').text();
 		showLoading(info["worksheetId"]);
-		var returned = sendRequest(info, worksheetId);
+		var repoUrl = $("#txtGithubUrl_" + worksheetId).text(); 
+		var returned = sendRequest(info, worksheetId,
+			function(data) {
+				var newWorksheetId = worksheetId;
+				$.each(data["elements"], function(i, element) {
+					if(element) {
+						if (element["updateType"] == "PublishR2RMLUpdate") {
+							newWorksheetId = element["worksheetId"];
+						}
+					}
+				});
+
+				var info = generateInfoObject(newWorksheetId, "", "PublishReportCommand");
+				showLoading(newWorksheetId);
+				var returned = sendRequest(info, newWorksheetId, function(json) {
+					publishToGithub(newWorksheetId, repoUrl);
+				});
+			});
 		return false;
+	}
+
+	function publishToGithub(worksheetId, repo) {
+		var auth = Settings.getInstance().getGithubAuth();
+		if(repo != "disabled" && !repo.endsWith("disabled)")) {
+			if(auth) {
+				showLoading(worksheetId);
+				var githubInfo = generateInfoObject(worksheetId, "", "PublishGithubCommand");
+		        githubInfo["worksheetId"] = worksheetId;
+		        githubInfo["auth"] = auth;
+		        githubInfo["repo"] = repo;
+		        var returned = sendRequest(githubInfo, worksheetId);
+		    }
+	    }
 	}
 
 	function applyModel(event) {

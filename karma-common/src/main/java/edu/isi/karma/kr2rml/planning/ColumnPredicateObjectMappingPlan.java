@@ -39,6 +39,7 @@ import edu.isi.karma.kr2rml.template.TemplateTermSet;
 import edu.isi.karma.kr2rml.template.TemplateTermSetPopulator;
 import edu.isi.karma.kr2rml.writer.KR2RMLRDFWriter;
 import edu.isi.karma.modeling.Namespaces;
+import edu.isi.karma.modeling.Uris;
 import edu.isi.karma.rep.HNodePath;
 import edu.isi.karma.rep.RepFactory;
 
@@ -70,9 +71,13 @@ public class ColumnPredicateObjectMappingPlan extends
 		TemplateTermSet literalTemplate = pom.getObject().getRdfLiteralType();
 		literalTemplateValue = null;
 		if(literalTemplate != null)
-		{
 			literalTemplateValue = generateStringValueForTemplate(literalTemplate);
-		}
+		
+		TemplateTermSet languageTemplate = pom.getObject().getLanguage();
+		literalLanguage = null;
+		if(languageTemplate != null)
+			literalLanguage = generateStringValueForTemplate(languageTemplate);
+		
 		objectTemplateTermSetPopulator = new TemplateTermSetPopulator(pom.getObject().getTemplate(), new StringBuilder(), uriFormatter, false, true);
 		generateInternal(subjectMapTemplate, pom, subjectTermsToPaths);
 		if(generateContext && objectTemplateTermSetPopulator.getTerms().isSingleColumnTerm())
@@ -95,21 +100,23 @@ public class ColumnPredicateObjectMappingPlan extends
 	protected void outputTriple(KR2RMLRDFWriter outWriter,
 			PopulatedTemplateTermSet subject,
 			PopulatedTemplateTermSet predicate, PopulatedTemplateTermSet object) {
-		if(objectTemplateTermSetPopulator.getTerms().isSingleUriString())
+		if(objectTemplateTermSetPopulator.getTerms().isSingleUriString() || predicate.getURI().equals("<" + Uris.RDF_TYPE_URI + ">"))
 		{
 			outWriter.outputTripleWithURIObject(pom, subject.getURI(), predicate.getURI(), uriFormatter.getExpandedAndNormalizedUri(object.getURI()));
 		}
 		else if(generateContext && objectTemplateTermSetPopulator.getTerms().isSingleColumnTerm())
 		{
 			try {
-				outWriter.outputQuadWithLiteralObject(pom, subject.getURI(), predicate.getURI(), object.getURI(), literalTemplateValue,getColumnContextUri(translator.getHNodeIdForColumnName(objectTemplateTermSetPopulator.getTerms().getAllTerms().get(0).getTemplateTermValue())));
+				outWriter.outputQuadWithLiteralObject(pom, subject.getURI(), predicate.getURI(), object.getURI(), 
+						literalTemplateValue, literalLanguage,
+						getColumnContextUri(translator.getHNodeIdForColumnName(objectTemplateTermSetPopulator.getTerms().getAllTerms().get(0).getTemplateTermValue())));
 			} catch (HNodeNotFoundKarmaException e) {
 				LOG.error("No hnode found for context " +objectTemplateTermSetPopulator.getTerms().getAllTerms().get(0).getTemplateTermValue() + " " + e);
 			}
 		}
 		else
 		{
-			outWriter.outputTripleWithLiteralObject(pom, subject.getURI(), predicate.getURI(), object.getURI(), literalTemplateValue);
+			outWriter.outputTripleWithLiteralObject(pom, subject.getURI(), predicate.getURI(), object.getURI(), literalTemplateValue, literalLanguage);
 		}
 		
 	}

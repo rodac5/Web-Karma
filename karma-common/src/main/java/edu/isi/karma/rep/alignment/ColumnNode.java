@@ -34,16 +34,18 @@ public class ColumnNode extends Node {
 	private final String hNodeId;
 	private final String columnName;
 	private Label rdfLiteralType;
+	private String language;
 	private ColumnSemanticTypeStatus semanticTypeStatus; 
 
 	private List<SemanticType> userSemanticTypes;
 	private List<SemanticType> learnedSemanticTypes;
 	
-	public ColumnNode(String id, String hNodeId, String columnName, Label rdfLiteralType) {
+	public ColumnNode(String id, String hNodeId, String columnName, Label rdfLiteralType, String language) {
 		super(id, new Label(hNodeId), NodeType.ColumnNode);
 		this.hNodeId = hNodeId;
 		this.columnName = columnName;
 		this.setRdfLiteralType(rdfLiteralType);
+		this.setLanguage(language);
 		this.userSemanticTypes = null;
 		this.learnedSemanticTypes = null;
 		this.semanticTypeStatus = ColumnSemanticTypeStatus.NotAssigned;
@@ -75,6 +77,8 @@ public class ColumnNode extends Node {
 				SemanticType semType = new SemanticType(st.getHNodeId(), 
 						st.getType(), 
 						st.getDomain(), 
+						st.getDomainId(),
+						st.isProvenance(),
 						st.getOrigin(), 
 						confidence / sum);
 				this.learnedSemanticTypes.add(semType);
@@ -96,6 +100,10 @@ public class ColumnNode extends Node {
 		return rdfLiteralType;
 	}
 	
+	public String getLanguage() {
+		return language;
+	}
+	
 	public void setRdfLiteralType(String rdfLiteralType) {
 		if (rdfLiteralType != null && rdfLiteralType.trim().length() > 0) {
 			rdfLiteralType = rdfLiteralType.replace(Prefixes.XSD + ":", Namespaces.XSD);
@@ -105,6 +113,10 @@ public class ColumnNode extends Node {
 		}
 	}
 
+	public void setLanguage(String language) {
+		this.language = language;
+	}
+	
 	public void setRdfLiteralType(Label rdfLiteralType) {
 		this.rdfLiteralType = rdfLiteralType;
 	}
@@ -120,6 +132,11 @@ public class ColumnNode extends Node {
 //			this.semanticTypeStatus = ColumnSemanticTypeStatus.Assigned;
 //		this.userSemanticTypes = userSemanticTypes;
 //	}
+	public void unassignUserTypes() {
+		if (userSemanticTypes == null)
+			this.userSemanticTypes = new ArrayList<>();
+		this.userSemanticTypes.clear();
+	}
 	
 	public void assignUserType(SemanticType newType) {
 		
@@ -132,7 +149,7 @@ public class ColumnNode extends Node {
 		//FIXME: when user invokes SetSemanticType, we should unassign the old one, otherwise
 		// we don't know if user wants to add more types or replace the existing one
 		// currently, I assume that we replace the old one when a new type is assigned
-		this.userSemanticTypes.clear();
+		//this.userSemanticTypes.clear();
 		
 		this.userSemanticTypes.add(newType);
 		this.semanticTypeStatus = ColumnSemanticTypeStatus.UserAssigned;

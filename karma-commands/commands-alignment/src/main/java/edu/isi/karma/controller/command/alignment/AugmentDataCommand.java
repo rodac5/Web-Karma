@@ -275,7 +275,8 @@ public class AugmentDataCommand extends WorksheetSelectionCommand{
 
 
 				semanticTypesArray.put(semanticType);
-				Command sstCommand = sstFactory.createCommand(model, workspace, worksheetId, nestedHNodeId, false, semanticTypesArray, false, "", selection.getName());
+				Command sstCommand = sstFactory.createCommand(model, workspace, worksheetId, nestedHNodeId, 
+						false, semanticTypesArray, false, "", "", selection.getName());
 				appliedCommands.push(sstCommand);
 				sstCommand.doIt(workspace);
 				if(!resultClass.get(i).trim().isEmpty())
@@ -294,21 +295,21 @@ public class AugmentDataCommand extends WorksheetSelectionCommand{
 					String targetUri = target.getLabel().getUri();
 					String edgeUri = resultPredicates.get(i);
 					if (!incoming) {
-						newEdge.put(ChangeInternalNodeLinksCommand.JsonKeys.edgeSourceId.name(), sourceId);
-						newEdge.put(ChangeInternalNodeLinksCommand.JsonKeys.edgeTargetId.name(), targetId);
-						newEdge.put(ChangeInternalNodeLinksCommand.JsonKeys.edgeId.name(), edgeUri);
+						newEdge.put(ChangeInternalNodeLinksCommand.LinkJsonKeys.edgeSourceId.name(), sourceId);
+						newEdge.put(ChangeInternalNodeLinksCommand.LinkJsonKeys.edgeTargetId.name(), targetId);
+						newEdge.put(ChangeInternalNodeLinksCommand.LinkJsonKeys.edgeId.name(), edgeUri);
 					}
 					else {
-						newEdge.put(ChangeInternalNodeLinksCommand.JsonKeys.edgeSourceId.name(), targetId);
-						newEdge.put(ChangeInternalNodeLinksCommand.JsonKeys.edgeTargetId.name(), sourceId);
-						newEdge.put(ChangeInternalNodeLinksCommand.JsonKeys.edgeId.name(), edgeUri);
+						newEdge.put(ChangeInternalNodeLinksCommand.LinkJsonKeys.edgeSourceId.name(), targetId);
+						newEdge.put(ChangeInternalNodeLinksCommand.LinkJsonKeys.edgeTargetId.name(), sourceId);
+						newEdge.put(ChangeInternalNodeLinksCommand.LinkJsonKeys.edgeId.name(), edgeUri);
 					}
 					newEdges.put(newEdge);
 					Command changeInternalNodeLinksCommand = cinlcf.createCommand(worksheetId, alignmentId, new JSONArray(), newEdges, model, workspace);
 					changeInternalNodeLinksCommand.doIt(workspace);
 					appliedCommands.push(changeInternalNodeLinksCommand);
 					Command setMetaDataCommand = smpcf.createCommand(model, workspace, nestedHNodeId, worksheetId, "isUriOfClass", 
-							targetUri, targetId, false, "", selection.getName());
+							targetUri, targetId, false, "", "", selection.getName());
 					setMetaDataCommand.doIt(workspace);
 					appliedCommands.push(setMetaDataCommand);
 				}

@@ -26,19 +26,25 @@
 				            </div>
 					  		<div id="semanticTypesTableDiv">
 						  		<table id="semanticTypesTable" class="table table-striped table-condensed">
-						  			<tr><th /><th /><th>Primary</th><th/><th/></tr>
+						  			<tr><th /><th width="60%"></th><th>Primary</th><th class="sem-provenance">Provenance</th><th/><th/></tr>
 					  			</table>
 					  		</div>
 				  		</div>
 			  		</div>
 			  		 
                 	<div class="row">
-            			<div class="col-sm-12">
+            			<div class="col-sm-6">
 							<label>
 								Literal Type:
 								<input type="text" class="form-control" id="literalTypeSelect" autocomplete="off">
 							</label>
             			</div>
+            			<div class="col-sm-6">
+							<label>
+								Language:
+								<input type="text" class="form-control" id="languageSelect" autocomplete="off">
+							</label>
+        				</div>
   					</div>
 						
 					<div class="row">
@@ -64,6 +70,8 @@
 							   <span class="input-group-addon">specifies specialization for edge</span>
 						      <input type="text" class="form-control" id="isSpecializationForEdgeTextBox" autocomplete="off">
 						    </div><!-- /input-group -->
+
+						    
 	                	</div>
                 	</div>
                 	
@@ -320,25 +328,40 @@
 	</div>
 
 	<div id="propertyAdvanceOptions" style="display:none">
-		<div class="row">
-			<div class="form-group">
+		<div class="row" id="advOptionsLiteralTypeRow">
+			<div class="form-group col-sm-6">
 				<label>
 					Literal Type:
 					<input type="text" class="form-control" id="propertyLiteralType" autocomplete="off">
 				</label>
 			</div>
+			<div class="form-group col-sm-6">
+				<label>
+					Language:
+					<input type="text" class="form-control" id="propertyLanguage" autocomplete="off">
+				</label>
+			</div>
 		</div>
-		<div class="row">
+		<div class="row" id="advOptionsClassRow">
 			<div class="form-group">
 				<div class="checkbox">
 				  	<label>
-					    <input type="checkbox" id="propertyIsSubclass">
+					    <input type="checkbox" id="propertyIsSubclass" name='subclass'>
 					    specifies class for node
 				  	</label>
 				</div>
 			</div>
 		</div>			  	
-			
+		<div class="row">
+			<div class="form-group">
+				<div class="checkbox">
+				  	<label>
+					    <input type="checkbox" id="propertyIsProvenance" name='provenance'>
+					    specifies provenance
+				  	</label>
+				</div>
+			</div>
+		</div>	
 		<div class="row">
 			<button type="submit" class="btn btn-primary" id="btnSaveAdvanceOptions">Save</button>
 		</div>
@@ -382,10 +405,19 @@
 							<label for="literal">Literal:</label>
 							<input type="text" id="literal" class="form-control">
 						</div>
-						<div class="row">
-							<div class="col-sm-7 form-group">
-							    <label for="literalType">Type:</label>
-							    <input type="text" id="literalType" class="form-control">
+						<div class="row" id="literalTypeRow">
+							<div class="form-group col-sm-6">
+							    <label>
+							    	Type:
+							    	<input type="text" id="literalType" class="form-control">
+							    </label>
+							    
+							</div>
+							<div class="form-group col-sm-6">
+								<label>
+									Language:
+									<input type="text" class="form-control" id="literalLanguage" autocomplete="off">
+								</label>
 							</div>
 						</div>
 						<div class="checkbox" id="isUriRow">

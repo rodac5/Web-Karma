@@ -35,6 +35,7 @@ public class AddLiteralNodeCommand extends WorksheetCommand {
 	
 	private String literalValue;
 	private String literalType;
+	private String language;
 	private boolean isUri;
 	private String nodeId;
 	
@@ -46,15 +47,17 @@ public class AddLiteralNodeCommand extends WorksheetCommand {
 	private Alignment oldAlignment;
 	private DirectedWeightedMultigraph<Node, DefaultLink> oldGraph;
 		
-	protected AddLiteralNodeCommand(String id, String model, String worksheetId, String alignmentId, String nodeId, String literalValue, String literalType, boolean isUri) {
+	protected AddLiteralNodeCommand(String id, String model, String worksheetId, String alignmentId, 
+			String nodeId, String literalValue, String literalType, String language, boolean isUri) {
 		super(id, model, worksheetId);
 		this.alignmentId = alignmentId;
 		this.literalValue = literalValue;
 		this.literalType = literalType;
+		this.language = language;
 		this.isUri = isUri;
 		this.nodeId = nodeId;
 
-		addTag(CommandTag.SemanticType);
+		addTag(CommandTag.Modeling);
 	}
 
 	@Override
@@ -64,9 +67,7 @@ public class AddLiteralNodeCommand extends WorksheetCommand {
 
 	@Override
 	public String getTitle() {
-		if(nodeId == null)
-			return "Add Literal Node";
-		return "Edit Literal Node";
+		return "Add Literal Node";
 	}
 
 	@Override
@@ -95,9 +96,10 @@ public class AddLiteralNodeCommand extends WorksheetCommand {
 		UpdateContainer uc = new UpdateContainer();
 		try {
 			if(nodeId == null) {
-				final LiteralNode ln = alignment.addLiteralNode(literalValue, literalType, isUri);
+				final LiteralNode ln = alignment.addLiteralNode(literalValue, literalType, language, isUri);
+				nodeId = ln.getId();
+				
 				uc.add(new AbstractUpdate() {
-
 					@Override
 					public void generateJson(String prefix, PrintWriter pw,
 							VWorkspace vWorkspace) {
@@ -107,7 +109,7 @@ public class AddLiteralNodeCommand extends WorksheetCommand {
 							JSONWriter writer = jsonStr.object();
 							writer.key("worksheetId").value(worksheetId);
 							writer.key("updateType").value("AddLiteralNodeUpdate");	
-							writer.key("hNodeId").value(ln.getId());
+							writer.key("hNodeId").value(nodeId);
 							writer.key("uri").value(literalValue);
 							writer.endObject();
 							pw.print(writer.toString());
@@ -120,7 +122,7 @@ public class AddLiteralNodeCommand extends WorksheetCommand {
 					
 				});
 			} else {
-				alignment.updateLiteralNode(nodeId, literalValue, literalType, isUri);
+				alignment.updateLiteralNode(nodeId, literalValue, literalType, language, isUri);
 			}
 			
 			if(!this.isExecutedInBatch())
@@ -147,6 +149,8 @@ public class AddLiteralNodeCommand extends WorksheetCommand {
 		return WorksheetUpdateFactory.createSemanticTypesAndSVGAlignmentUpdates(worksheetId, workspace);
 	}
 
-	
+	public String getNodeId() {
+		return nodeId;
+	}
 
 }

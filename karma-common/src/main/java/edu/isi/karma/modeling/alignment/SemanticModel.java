@@ -249,7 +249,9 @@ public class SemanticModel {
 			if (incomingLinks != null) {
 				for (LabeledLink link : incomingLinks) {
 					Node domain = link.getSource();
-					SemanticType st = new SemanticType(cn.getHNodeId(), link.getLabel(), domain.getLabel(), Origin.User, 1.0);
+					SemanticType st = new SemanticType(cn.getHNodeId(), link.getLabel(), 
+							domain.getLabel(), domain.getId(), false, 
+							Origin.User, 1.0);
 					cn.assignUserType(st);
 				}
 			} else
@@ -927,7 +929,7 @@ public class SemanticModel {
 		}
     	reader.endObject();
     	
-    	ColumnNode cn = new ColumnNode(id, hNodeId, columnName, null);
+    	ColumnNode cn = new ColumnNode(id, hNodeId, columnName, null, null);
     	return cn;
 	}
 

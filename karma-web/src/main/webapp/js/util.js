@@ -12,7 +12,7 @@ function refreshRows(wsId) {
 		sendRequest(info, wsId);
 	}
 
-function sendRequest(info, worksheetId) {
+function sendRequest(info, worksheetId, callback) {
 	$.ajax({
 		url: "RequestController",
 		type: "POST",
@@ -25,6 +25,8 @@ function sendRequest(info, worksheetId) {
 				hideWaitingSignOnScreen();
 			else
 				hideLoading(worksheetId);
+			if(callback)
+				callback(json);
 		},
 		error: function(xhr, textStatus) {
 			alert("Error occured with " + info['command'] + textStatus);
@@ -329,11 +331,13 @@ function parseClassJSON(clazz, result, allLabels) {
 	var uri = clazz.nodeUri;
 	var id = clazz.nodeId;
 	var label = clazz.nodeLabel;
+	var rdfsLabel = clazz.nodeRDFSLabel;
 
 	var node = {
 		"label": label,
 		"id": id,
-		"uri": uri
+		"uri": uri,
+		"rdfsLabel": rdfsLabel
 	};
 	result.push(node);
 	//	if(clazz.children) {
@@ -590,6 +594,7 @@ function getRecommendedProperties(worksheetId, linkId) {
 function parsePropertyJSON(prop, result) {
 	var node = {
 		"label": prop.label,
+		"rdfsLabel": prop.rdfsLabel,
 		"id": prop.id,
 		"uri": prop.uri,
 		"type": prop.type
@@ -664,7 +669,7 @@ function getAllLinksForNode(worksheetId, alignmentId, nodeId) {
 	return result;
 }
 
-function changeLinks(worksheetId, alignmentId, oldEdges, newEdges) {
+function changeLinks(worksheetId, alignmentId, oldEdges, newEdges, callback) {
 	var info = generateInfoObject(worksheetId, "", "ChangeInternalNodeLinksCommand");
 	// Prepare the input for command
 	var newInfo = info['newInfo'];
@@ -677,6 +682,7 @@ function changeLinks(worksheetId, alignmentId, oldEdges, newEdges) {
 		oldEdgeObj["edgeSourceId"] = edge.source.id;
 		oldEdgeObj["edgeTargetId"] = edge.target.id;
 		oldEdgeObj["edgeId"] = edge.uri;
+		oldEdgeObj["isProvenance"] = edge.isProvenance;
 		initialEdges.push(oldEdgeObj);
 	});
 	newInfo.push(getParamObject("initialEdges", initialEdges, "other"));
@@ -691,6 +697,7 @@ function changeLinks(worksheetId, alignmentId, oldEdges, newEdges) {
 		newEdgeObj["edgeTargetId"] = edge.target.id;
 		newEdgeObj["edgeTargetUri"] = edge.target.uri;
 		newEdgeObj["edgeId"] = edge.uri;
+		newEdgeObj["isProvenance"] = edge.isProvenance;
 		newEdgesArr.push(newEdgeObj);
 	});
 	newInfo.push(getParamObject("newEdges", newEdgesArr, "other"));
@@ -698,7 +705,7 @@ function changeLinks(worksheetId, alignmentId, oldEdges, newEdges) {
 
 	info["newInfo"] = JSON.stringify(newInfo);
 	showLoading(worksheetId);
-	return sendRequest(info, worksheetId);
+	return sendRequest(info, worksheetId, callback);
 }
 
 function setSpecializedEdgeSemanticType(worksheetId, columnId, edge, rdfLiteralType) {
@@ -727,7 +734,7 @@ function setSpecializedEdgeSemanticType(worksheetId, columnId, edge, rdfLiteralT
 	var returned = sendRequest(info, worksheetId);
 }
 
-function setSubClassSemanticType(worksheetId, columnId, clazz, rdfLiteralType) {
+function setSubClassSemanticType(worksheetId, columnId, clazz, rdfLiteralType, language) {
 	var info = generateInfoObject(worksheetId, columnId, "");
 	info["command"] = "SetMetaPropertyCommand";
 
@@ -742,24 +749,101 @@ function setSubClassSemanticType(worksheetId, columnId, clazz, rdfLiteralType) {
 
 	info["trainAndShowUpdates"] = true
 	info["rdfLiteralType"] = ''
+	info['language'] = '';
 	newInfo.push(getParamObject("trainAndShowUpdates", true, "other"));
-	if(rdfLiteralType)
-		newInfo.push(getParamObject("rdfLiteralType", rdfLiteralType, "other"));
-	else
-		newInfo.push(getParamObject("rdfLiteralType", rdfLiteralType, "other"));
+	newInfo.push(getParamObject("rdfLiteralType", rdfLiteralType, "other"));
+	newInfo.push(getParamObject("language", language, "other"));
+
 	info["newInfo"] = JSON.stringify(newInfo);
 	showLoading(info["worksheetId"]);
 	var returned = sendRequest(info, worksheetId);
 }
 
-function setSemanticType(worksheetId, columnId, type, rdfLiteralType) {
+function removeSemanticLink(worksheetId, alignmentId, columnId, columnType, link) {
+	if(columnType == "ColumnNode") {
+		info = generateInfoObject(worksheetId, columnId, "UnassignSemanticTypeCommand");
+		var newInfo = info['newInfo'];
+
+		var semTypesArray = new Array();
+		var isPrimary = true;
+		
+		//1. Add all existing semantic types
+		var tdTag = $("td#" + columnId);
+		var typeJsonObject = $(tdTag).data("typesJsonObject");
+		if (typeJsonObject) {
+			existingTypes = typeJsonObject["SemanticTypesArray"];
+		} else {
+			existingTypes = [];
+		}
+		var language;
+		var rdfLiteralType;
+		$.each(existingTypes, function(index, type) {
+			if(type.FullType != link.uri || type.DomainId != link.source.id) {
+				var newType = new Object();
+				newType["FullType"] = type.FullType;
+				newType["DomainUri"] = type.DomainUri;
+				newType["DomainId"] = type.DomainId;
+				newType["DomainLabel"] = type.DisplayDomainLabel;
+				newType["isPrimary"] = type.isPrimary;
+				if(type.isPrimary)
+					isPrimary = false;
+				newType["isProvenance"] = type.isProvenance;
+				language = type.language;
+				rdfLiteralType = type.rdfLiteralType;
+				semTypesArray.push(newType);
+			}
+		});
+
+		if(semTypesArray.length > 0) {
+			info["command"] = "SetSemanticTypeCommand";
+			info["SemanticTypesArray"] = JSON.stringify(semTypesArray);
+			newInfo.push(getParamObject("SemanticTypesArray", semTypesArray, "other"));
+			newInfo.push(getParamObject("trainAndShowUpdates", true, "other"));
+			newInfo.push(getParamObject("rdfLiteralType", rdfLiteralType, "other"));
+			newInfo.push(getParamObject("language", language, "other"));
+		} else {
+			newInfo.push(getParamObject("alignmentId", alignmentId, "other"));
+		}
+		info["newInfo"] = JSON.stringify(newInfo);
+	} else {
+		info = generateInfoObject(worksheetId, "", "ChangeInternalNodeLinksCommand");
+
+		// Prepare the input for command
+		var newInfo = info['newInfo'];
+
+		// Put the old edge information
+		var initialEdges = [];
+		var oldEdgeObj = {};
+		oldEdgeObj["edgeSourceId"] = link.source.id;
+		oldEdgeObj["edgeTargetId"] = link.target.id;
+		oldEdgeObj["edgeId"] = link.uri;
+		initialEdges.push(oldEdgeObj);
+		newInfo.push(getParamObject("initialEdges", initialEdges, "other"));
+		newInfo.push(getParamObject("alignmentId", alignmentId, "other"));
+		var newEdges = [];
+		newInfo.push(getParamObject("newEdges", newEdges, "other"));
+		info["newInfo"] = JSON.stringify(newInfo);
+		info["newEdges"] = newEdges;
+	}
+
+	showLoading(worksheetId);
+	var returned = sendRequest(info, worksheetId);
+}
+
+
+function setSemanticType(worksheetId, columnId, type, rdfLiteralType, language) {
 	var info = generateInfoObject(worksheetId, columnId, "");
 	var newInfo = info['newInfo']; 
 	if(rdfLiteralType) {
 	} else {
-		rdfLiteralType = ''
+		rdfLiteralType = '';
+	}
+	if(language) {
+	} else {
+		language = '';
 	}
 	info["rdfLiteralType"] = rdfLiteralType;
+	info["language"] = language;
 	if(type.uri == "http://isi.edu/integration/karma/dev#classLink") {
 		info["command"] = "SetMetaPropertyCommand";
 		info["metaPropertyName"] = "isUriOfClass";
@@ -771,20 +855,66 @@ function setSemanticType(worksheetId, columnId, type, rdfLiteralType) {
 	} else {
 		info["command"] = "SetSemanticTypeCommand";
 		var semTypesArray = new Array();
+		var isPrimary = true;
+		
+		//1. Add all existing semantic types
+		var tdTag = $("td#" + columnId);
+		var typeJsonObject = $(tdTag).data("typesJsonObject");
+		if (typeJsonObject) {
+			existingTypes = typeJsonObject["SemanticTypesArray"];
+		} else {
+			existingTypes = [];
+		}
+		var isValid = true;
+		var errorMsg = "";
+		$.each(existingTypes, function(index, etype) {
+			var newType = new Object();
+			if(etype.FullType == type.uri && etype.DomainId == type.source.id)
+				return;
+
+			newType["FullType"] = etype.FullType;
+			newType["DomainUri"] = etype.DomainUri;
+			newType["DomainId"] = etype.DomainId;
+			newType["DomainLabel"] = etype.DomainLabel;
+			newType["isPrimary"] = etype.isPrimary;
+			if(etype.isPrimary)
+				isPrimary = false;
+			newType["isProvenance"] = etype.isProvenance;
+			if(etype.FullType == "http://isi.edu/integration/karma/dev#classLink") {
+				isValid = false;
+				errorMsg = "Please delete URI type. Only 1 Semantic Type can be defined for columns that are URIs"
+				return;
+			} else if(etype.FullType == "http://isi.edu/integration/karma/dev#dataPropertyOfColumnLink") {
+				isValid = false;
+				errorMsg = "Please delete edge specializing link before adding the new type. \nOnly 1 Semantic type can be defined for columns that specify specialization for edge"
+			} else if(etype.FullType == "http://isi.edu/integration/karma/dev#columnSubClassOfLink") {
+				isValid = false;
+				errorMsg = "Please delete columnSubClassOfLink before adding the new type. \nOnly 1 Semantic Type can be defined for columns that specify subclass for Nodes"
+			}
+			semTypesArray.push(newType);
+		});
+
+		if(!isValid) {
+			alert(errorMsg);
+			return;
+		}
+		//2. Add this new type that we have
 		var newType = new Object();
 		newType["FullType"] = type.uri;
 		newType["DomainUri"] = type.source.uri;
 		newType["DomainId"] = type.source.id;
 		newType["DomainLabel"] = type.source.label;
-		newType["isPrimary"] = true;
-
+		newType["isPrimary"] = isPrimary;
+		newType["isProvenance"] = type.isProvenance;
 		semTypesArray.push(newType);
+
 		info["SemanticTypesArray"] = JSON.stringify(semTypesArray);
 		newInfo.push(getParamObject("SemanticTypesArray", semTypesArray, "other"));
 	}
+
 	newInfo.push(getParamObject("trainAndShowUpdates", true, "other"));
 	newInfo.push(getParamObject("rdfLiteralType", rdfLiteralType, "other"));
-	
+	newInfo.push(getParamObject("language", language, "other"));
 	info["newInfo"] = JSON.stringify(newInfo);
 	showLoading(info["worksheetId"]);
 	var returned = sendRequest(info, worksheetId);
@@ -827,6 +957,17 @@ function refreshWorksheet(worksheetId, updates) {
 	sendRequest(info, worksheetId);
 }
 
+function refreshHistory(worksheetId, callback) {
+	console.log("Refresh History:" + refreshWorksheet)
+	var info = generateInfoObject(worksheetId, "", "RefreshHistoryCommand");
+	// Prepare the input for command
+	var newInfo = info['newInfo'];
+	newInfo.push(getParamObject("worksheetId", worksheetId, "worksheetId"));
+	info["newInfo"] = JSON.stringify(newInfo);
+	showLoading(worksheetId);
+	return sendRequest(info, worksheetId, callback);
+}
+
 function getLabelWithoutPrefix(label) {
 	idx = label.indexOf(":");
 	if(idx != -1)
@@ -837,6 +978,44 @@ function getLabelWithoutPrefix(label) {
 function isValidUrl(url) {
 	var re = /^(ht|f)tps?:\/\/(([a-z0-9-\.]+\.[a-z]{2,4})|(localhost))\/?([^\s<>\#%"\,\{\}\\|\\\^\[\]`]+)?$/;
     return re.test(url);
+}
+
+function showNodeHelp(worksheetId, node) {
+	if(node.nodeId)
+		uri = node.nodeId;
+	else
+		uri = node.linkUri;
+	var html = "<div class='rdfsUriHelp'><span class='heading'>URI&nbsp;</span>" + uri + "</div>";
+	if(node.rdfsLabel)
+		html += "<div class='rdfsLabelHelp'><span class='heading'>rdfs:label&nbsp;</span>" + node.rdfsLabel + "</div>";
+	if(node.rdfsComment)
+		html += "<div class='rdfsCommentHelp'><span class='heading'>rdfs:comment&nbsp;</span>" + node.rdfsComment + "</div>";
+	showHelp(worksheetId, html);
+}
+
+function showHelp(worksheetId, html) {
+	var helpDiv = $("#helpDiv");
+	helpDiv.html(html);
+	var worksheetTop = $("#svgDiv_" + worksheetId);
+	var top = worksheetTop.offset().top;
+	var left = worksheetTop.offset().left;
+
+	var windowBoxLeft = $(window).scrollLeft();
+	var windowBoxRight = windowBoxLeft + $(window).width();
+	var windowBoxTop = $(window).scrollTop();
+	var windowBoxBottom = windowBoxTop + $(window).height();
+
+	if(left < windowBoxLeft || left > windowBoxRight)
+		left = windowBoxLeft + 2;
+	if(top < windowBoxTop || top > windowBoxBottom)
+		top = windowBoxTop + 2;
+
+	helpDiv.css({ "top": top+2, "left": left+2 });
+	helpDiv.show();
+}
+
+function hideHelp() {
+	$("#helpDiv").hide();
 }
 
 //Make All Modal Dialogs Resizeable

@@ -22,12 +22,14 @@ package edu.isi.karma.kr2rml.writer;
 
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.lang3.StringEscapeUtils;
+import org.apache.commons.lang3.text.translate.UnicodeUnescaper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -83,34 +85,45 @@ public class N3KR2RMLRDFWriter extends KR2RMLRDFWriter {
 
 	@Override
 	public void outputTripleWithLiteralObject(String subjUri, String predicateUri, String value, 
-			String literalType) {
-		outputTriple(constructTripleWithLiteralObject(subjUri, predicateUri, value, literalType));
+			String literalType, String language) {
+		outputTriple(constructTripleWithLiteralObject(subjUri, predicateUri, value, literalType, language));
 	}
 
 	private String constructTripleWithLiteralObject(String subjUri, String predicateUri, String value, 
-			String literalType) {
-		// Use Apache Commons to escape the value
-		value = StringEscapeUtils.escapeJava(value);
+			String literalType, String language) {
+		
+		value = escapeValue(value);
 		if (subjUri.indexOf("<") != -1 && subjUri.indexOf(">") != -1) {
 			String tmp = subjUri.substring(1, subjUri.length() - 1);
 			subjUri = "<" + normalizeURI(tmp) + ">";
 		}
-		// Add the RDF literal type to the literal if present
-		if (literalType != null && !literalType.equals("")) {
+		//https://www.w3.org/TeamSubmission/turtle/ - Literals may be given either a language suffix or a datatype URI but not both
+		if(language != null && !language.equals("")) {
+			return subjUri + " " + uriFormatter.getExpandedAndNormalizedUri(predicateUri) + " \"" + value + 
+					"\"" + "@" + language + " .";
+		} else if (literalType != null && !literalType.equals("")) {
+			// Add the RDF literal type to the literal if present
 			return subjUri + " " + uriFormatter.getExpandedAndNormalizedUri(predicateUri) + " \"" + value + 
 					"\"" + "^^<" + literalType + "> .";
 		}
 		return subjUri + " " + uriFormatter.getExpandedAndNormalizedUri(predicateUri) + " \"" + value + "\" .";
 	}
 
+	private String escapeValue(String value) {
+		// Use Apache Commons to escape the value
+		String result = StringEscapeUtils.escapeJava(value);
+		//The above also encodes unicode characters to \u0048\u0065\u006C\u006C etc sequences. To remove that, we do
+		return new UnicodeUnescaper().translate(result);
+	}
+	
 	@Override
 	public void outputQuadWithLiteralObject(String subjUri, String predicateUri, 
-			String value, String literalType, String graph) {
-		outputTriple(constructQuadWithLiteralObject(subjUri, predicateUri, value, literalType, graph));
+			String value, String literalType, String language, String graph) {
+		outputTriple(constructQuadWithLiteralObject(subjUri, predicateUri, value, literalType, language, graph));
 	}
 	private String constructQuadWithLiteralObject(String subjUri, String predicateUri, 
-			String value, String literalType, String graph) {
-		String triple = constructTripleWithLiteralObject(subjUri, predicateUri, value, literalType);
+			String value, String literalType, String language, String graph) {
+		String triple = constructTripleWithLiteralObject(subjUri, predicateUri, value, literalType, language);
 		if (triple.length() > 2)
 			return triple.substring(0, triple.length()-1) + "<" + graph + "> ." ;
 		else
@@ -125,15 +138,15 @@ public class N3KR2RMLRDFWriter extends KR2RMLRDFWriter {
 	@Override
 	public void outputTripleWithLiteralObject(PredicateObjectMap predicateObjectMap,
 			String subjUri, String predicateUri, String value,
-			String literalType) {
-		outputTripleWithLiteralObject(subjUri, predicateUri, value, literalType);
+			String literalType, String language) {
+		outputTripleWithLiteralObject(subjUri, predicateUri, value, literalType, language);
 	}
 	
 	@Override
 	public void outputQuadWithLiteralObject(PredicateObjectMap predicateObjectMap,
 			String subjUri, String predicateUri, String value,
-			String literalType, String graph) {
-		outputQuadWithLiteralObject(subjUri, predicateUri, value, literalType, graph);
+			String literalType, String language, String graph) {
+		outputQuadWithLiteralObject(subjUri, predicateUri, value, literalType, language, graph);
 	}
 
 	@Override

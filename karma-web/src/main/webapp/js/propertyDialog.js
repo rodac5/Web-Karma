@@ -10,11 +10,11 @@ var PropertyDialog = (function() {
 
 		var worksheetId;
 		var alignmentId;
-		var propertyId, propertyUri, propertyLabel;
-		var sourceNodeId, sourceLabel, sourceDomain, sourceId, sourceNodeType, sourceIsUri;
-		var targetNodeId, targetLabel, targetDomain, targetId, targetNodeType, targetIsUri;
+		var propertyId, propertyUri, propertyLabel, propertyRdfsLabel, propertyRdfsComment, propertyIsProvenance;
+		var sourceNodeId, sourceLabel, sourceRdfsLabel, sourceRdfsComment, sourceDomain, sourceId, sourceNodeType, sourceIsUri;
+		var targetNodeId, targetLabel, targetRdfsLabel, targetRdfsComment, targetDomain, targetId, targetNodeType, targetIsUri;
 		var propertyTabs;
-		var propertyLiteralType, propertyIsSubClass;
+		var propertyLiteralType, propertyIsSubClass, propertyLanguage;
 
 		var options = [
 			//Title, function to call, needs file upload     
@@ -58,11 +58,11 @@ var PropertyDialog = (function() {
 			$("div.error", dialog).show();
 		}
 
-		function changeLinkUI() {
+		function changeLinkUI(event) {
 			initRightDiv("Change Link");
 			propertyTabs.show(worksheetId, alignmentId, propertyId, propertyUri, 
-													sourceNodeId, sourceNodeType, sourceLabel, sourceDomain, sourceId, sourceIsUri,
-													targetNodeId, targetNodeType, targetLabel, targetDomain, targetId, targetIsUri,
+													sourceNodeId, sourceNodeType, sourceLabel, sourceRdfsLabel, sourceRdfsComment, sourceDomain, sourceId, sourceIsUri,
+													targetNodeId, targetNodeType, targetLabel, targetRdfsLabel, targetRdfsComment, targetDomain, targetId, targetIsUri,
 													rightDiv, selectPropertyFromMenu,
 													event);
 		}
@@ -80,72 +80,75 @@ var PropertyDialog = (function() {
 			rightDiv.empty();
 		}
 
-		function deleteLink(e) {
+		function deleteLink(event) {
 			console.log("deleteLink");
 			if (confirm("Are you sure you wish to delete the link?")) {
 				var info;
 				hide();
-				if(targetNodeType == "ColumnNode") {
-					info = generateInfoObject(worksheetId, targetNodeId, "UnassignSemanticTypeCommand");
-					info["newInfo"] = JSON.stringify(info['newInfo']);
-				} else {
-					info = generateInfoObject(worksheetId, "", "ChangeInternalNodeLinksCommand");
-	
-					// Prepare the input for command
-					var newInfo = info['newInfo'];
-	
-					// Put the old edge information
-					var initialEdges = [];
-					var oldEdgeObj = {};
-					oldEdgeObj["edgeSourceId"] = sourceNodeId;
-					oldEdgeObj["edgeTargetId"] = targetNodeId;
-					oldEdgeObj["edgeId"] = propertyUri;
-					initialEdges.push(oldEdgeObj);
-					newInfo.push(getParamObject("initialEdges", initialEdges, "other"));
-					newInfo.push(getParamObject("alignmentId", alignmentId, "other"));
-					var newEdges = [];
-					newInfo.push(getParamObject("newEdges", newEdges, "other"));
-					info["newInfo"] = JSON.stringify(newInfo);
-					info["newEdges"] = newEdges;
-				}
-
-				showLoading(worksheetId);
-				var returned = sendRequest(info, worksheetId);
+				var link = {"uri": propertyUri, "source": {"id": sourceNodeId}, "target": {"id": targetNodeId}}
+				removeSemanticLink(worksheetId, alignmentId, targetNodeId, targetNodeType, link);
 			}
-			e.preventDefault();
+			event.preventDefault();
 		}
 
-		function advanceOptionsUI(e) {
+		function advanceOptionsUI(event) {
 			initRightDiv("Advanced Options");
-			PropertyAdvanceOptionsDialog.getInstance().show(propertyLiteralType, propertyIsSubClass, rightDiv, saveAdvanceOptions);
+			PropertyAdvanceOptionsDialog.getInstance().show(
+						targetNodeType,
+						propertyLiteralType, 
+						propertyLanguage, propertyIsSubClass, propertyIsProvenance,
+						rightDiv, saveAdvanceOptions);
+			event.preventDefault();
 		}
 
-		function saveAdvanceOptions(literalType, isSubclassOfClass) {
-			if(isSubclassOfClass) {
-				setSubClassSemanticType(worksheetId, targetId, {"uri": sourceDomain, "id": sourceId, "label":sourceLabel}, literalType);
+		function saveAdvanceOptions(targetNodeType, literalType, language, isSubclassOfClass, isProvenance) {
+			if(targetNodeType == "LiteralNode") {
+				if(isProvenance != propertyIsProvenance) {
+					var oldEdges = [{"uri": propertyUri, 
+									"isProvenance": propertyIsProvenance,
+									"source": {"uri": sourceDomain, "label": sourceLabel, "id": sourceId},
+									"target": {"uri": targetDomain, "label": targetLabel, "id": targetId}
+									}];
+					var newEdges = [{"uri": propertyUri, 
+									"isProvenance": isProvenance,
+									"source": {"uri": sourceDomain, "label": sourceLabel, "id": sourceId},
+									"target": {"uri": targetDomain, "label": targetLabel, "id": targetId}
+									}];
+					changeLinks(worksheetId, alignmentId, oldEdges, newEdges, function() {
+						if(!isProvenance)
+							refreshHistory(worksheetId);
+					});
+				}
 			} else {
-				var type = {};
-				type.label = propertyLabel;
-				type.uri = propertyUri;
-				type.source = {"uri": sourceDomain, "label": sourceLabel, "id": sourceId};
-				type.target = {"uri": targetDomain, "label": targetLabel, "id": targetId};
-				setSemanticType(worksheetId, targetId, type, literalType);
+				if(isSubclassOfClass) {
+					setSubClassSemanticType(worksheetId, targetId, {"uri": sourceDomain, 
+						"id": sourceId, "label":sourceLabel}, literalType, language);
+				} else {
+					var type = {};
+					type.label = propertyLabel;
+					type.uri = propertyUri;
+					type.isProvenance = isProvenance;
+					type.source = {"uri": sourceDomain, "label": sourceLabel, "id": sourceId};
+					type.target = {"uri": targetDomain, "label": targetLabel, "id": targetId};
+					setSemanticType(worksheetId, targetId, type, literalType, language);
+				}
 			}
 			hide();
 		}
 
-		function changeFromUI(e) {
+		function changeFromUI(event) {
 			initRightDiv("Change From", "Change From Class for Link");
 
-			ClassTabs.getInstance().show(worksheetId, sourceNodeId, sourceLabel, sourceDomain, 
+			ClassTabs.getInstance().show(worksheetId, sourceNodeId, sourceLabel, sourceRdfsLabel, sourceRdfsComment, sourceDomain, 
 				alignmentId, sourceNodeType, rightDiv, function(clazz) {
 					if(targetNodeType == "ColumnNode") {
 						var type = {};
 						type.label = propertyLabel;
 						type.uri = propertyUri;
+						type.isProvenance = propertyIsProvenance;
 						type.source = clazz;
 						type.target = {"uri": targetDomain, "label": targetLabel, "id": targetId};
-						setSemanticType(worksheetId, targetId, type, propertyLiteralType);
+						setSemanticType(worksheetId, targetId, type, propertyLiteralType, propertyLanguage);
 					} else {
 						//Change Links command
 						oldEdges = [];
@@ -171,10 +174,10 @@ var PropertyDialog = (function() {
 
 		}
 
-		function changeToUI(e) {
+		function changeToUI(event) {
 			initRightDiv("Change To", "Change To Class for Link");
 
-			ClassTabs.getInstance().show(worksheetId, targetNodeId, targetLabel, targetDomain, 
+			ClassTabs.getInstance().show(worksheetId, targetNodeId, targetLabel, targetRdfsLabel, targetRdfsComment, targetDomain, 
 				alignmentId, targetNodeType, rightDiv, function(clazz) {
 					//Change Links command
 					oldEdges = [];
@@ -198,11 +201,12 @@ var PropertyDialog = (function() {
 				event);
 		}
 
-		function selectPropertyFromMenu(property, e) {
-			console.log("Selected property:" + label);
+		function selectPropertyFromMenu(property, event) {
+			console.log("Selected property:" + property.label);
 			if(sourceDomain == "BlankNode" || targetDomain == "BlankNode") {
-				D3ModelManager.getInstance().changeTemporaryLink(worksheetId, propertyId, property.uri, property.label);
-				e.stopPropagation();
+				D3ModelManager.getInstance().changeTemporaryLink(worksheetId, propertyId, property.uri, 
+					property.label, property.rdfsLabel, property.rdfsComment);
+				event.stopPropagation();
 				hide();
 			} else {
 				if(targetNodeType == "ColumnNode") {
@@ -211,7 +215,7 @@ var PropertyDialog = (function() {
 						"uri": property.uri,
 						"source": {"id": sourceId, "uri":sourceDomain, "label": sourceLabel}
 					}
-					setSemanticType(worksheetId, targetId, type, propertyLiteralType);
+					setSemanticType(worksheetId, targetId, type, propertyLiteralType, propertyLanguage);
 				} else {
 					oldEdges = [];
 					var oldEdgeObj = {};
@@ -236,7 +240,7 @@ var PropertyDialog = (function() {
 
 
 		function setTitle(title) {
-			$("#propertyDialog_title", dialog).html(title + ": " + propertyLabel);
+			$("#propertyDialog_title", dialog).html(title + ": " + Settings.getInstance().getDisplayLabel(propertyLabel, propertyRdfsLabel));
 		}
 
 
@@ -323,7 +327,7 @@ var PropertyDialog = (function() {
 					disableItem("Change To");
 				}
 
-				if(targetNodeType  != "ColumnNode")
+				if(targetNodeType  != "ColumnNode" && targetNodeType != "LiteralNode")
 					disableItem("Advanced Options");
 			}
 			rightDiv.removeClass("col-sm-12").addClass("col-sm-10");
@@ -334,9 +338,9 @@ var PropertyDialog = (function() {
 			rightDiv.removeClass("col-sm-10").addClass("col-sm-12");
 		}
 
-		function show(p_worksheetId, p_alignmentId, p_propertyId, p_propertyUri, p_propertyLabel, p_propertyStatus,
-			p_sourceNodeId, p_sourceNodeType, p_sourceLabel, p_sourceDomain, p_sourceId, p_sourceIsUri,
-			p_targetNodeId, p_targetNodeType, p_targetLabel, p_targetDomain, p_targetId, p_targetIsUri,
+		function show(p_worksheetId, p_alignmentId, p_propertyId, p_propertyUri, p_propertyLabel, p_propertyRdfsLabel, p_propertyRdfsComment, p_propertyIsProvenance, p_propertyStatus,
+			p_sourceNodeId, p_sourceNodeType, p_sourceLabel, p_sourceRdfsLabel, p_sourceRdfsComment, p_sourceDomain, p_sourceId, p_sourceIsUri,
+			p_targetNodeId, p_targetNodeType, p_targetLabel, p_targetRdfsLabel, p_targetRdfsComment, p_targetDomain, p_targetId, p_targetIsUri,
 			event) {
 			worksheetId = p_worksheetId;
 			alignmentId = p_alignmentId;
@@ -344,14 +348,21 @@ var PropertyDialog = (function() {
 			linkStatus = p_propertyStatus;
 			propertyUri = p_propertyUri;
 			propertyLabel = p_propertyLabel;
+			propertyRdfsLabel = p_propertyRdfsLabel;
+			propertyRdfsComment = p_propertyRdfsComment;
+			propertyIsProvenance = p_propertyIsProvenance;
 
 			sourceNodeId = p_sourceNodeId;
 			sourceLabel = p_sourceLabel;
+			sourceRdfsLabel = p_sourceRdfsLabel;
+			sourceRdfsComment = p_sourceRdfsComment;
 			sourceDomain = p_sourceDomain;
 			sourceId = p_sourceId;
 			sourceIsUri = p_sourceIsUri;
 			targetNodeId = p_targetNodeId;
 			targetLabel = p_targetLabel;
+			targetRdfsLabel = p_targetRdfsLabel;
+			targetRdfsComment = p_targetRdfsComment;
 			targetDomain = p_targetDomain;
 			targetId = p_targetId;
 			targetIsUri = p_targetIsUri;
@@ -363,6 +374,7 @@ var PropertyDialog = (function() {
 
 			propertyIsSubClass = false;
 			propertyLiteralType = "";
+			propertyLanguage = "";
 
 			if(p_targetNodeType == "ColumnNode") {
 				var tdTag = $("td#" + targetNodeId);
@@ -376,13 +388,17 @@ var PropertyDialog = (function() {
 					if (type["DisplayLabel"] == "km-dev:columnSubClassOfLink") {
 						propertyIsSubClass = true;
 						propertyLiteralType = type["rdfLiteralType"];
-					} else if(type["rdfLiteralType"]){
-						propertyLiteralType = type["rdfLiteralType"];
-					}
+						propertyLanguage = type["language"]
+					} else {
+						if(type["rdfLiteralType"])
+							propertyLiteralType = type["rdfLiteralType"];
+						if(type["language"])
+							propertyLanguage = type["language"];
+					} 
 				});
 			}
 
-			$("#propertyDialog_title", dialog).html("Link: " + propertyLabel);
+			$("#propertyDialog_title", dialog).html("Link: " + Settings.getInstance().getDisplayLabel(propertyLabel, propertyRdfsLabel));
 			if(sourceNodeType == "Link") {
 				showFunctionsMenu();
 				rightDiv.hide();
@@ -433,23 +449,39 @@ var PropertyAdvanceOptionsDialog = (function() {
 
 	function PrivateConstructor() {
 		var callback;
+		var targetNodeType;
 		var dialog = $("#propertyAdvanceOptions");
 
 		function init() {
 			$("#btnSaveAdvanceOptions").on("click", function(e) {
 				var literalType = $("#propertyLiteralType", dialog).val();
+				var language = $("#propertyLanguage", dialog).val();
 				var isSubclassOfClass = $("#propertyIsSubclass", dialog).is(':checked');
-				callback(literalType, isSubclassOfClass);	
+				var isProvenance = $("#propertyIsProvenance", dialog).is(':checked');
+				callback(targetNodeType, literalType, language, isSubclassOfClass, isProvenance);
+				e.preventDefault();
+				return false;	
 			});	
 			$("#propertyLiteralType").typeahead( 
 				{source:LITERAL_TYPE_ARRAY, minLength:0, items:"all"});
+			$("#propertyLanguage").typeahead(
+				{source:LANGUAGE_ARRAY, minLength:0, items:"all"});
 		}
 
-		function show(rdfLiteralType, isSubClass, div, p_callback) {
+		function show(p_targetNodeType, rdfLiteralType, language, isSubClass, isProvenance, div, p_callback) {
 			callback = p_callback;
-
+			targetNodeType = p_targetNodeType;
+			if(targetNodeType == "LiteralNode") {
+				$("#advOptionsLiteralTypeRow", dialog).hide();
+				$("#advOptionsClassRow", dialog).hide();
+			} else {
+				$("#advOptionsLiteralTypeRow", dialog).show();
+				$("#advOptionsClassRow", dialog).show();
+			}
 			$("#propertyLiteralType", dialog).val(rdfLiteralType);
-			$("div#propertyAdvanceOptions input:checkbox").prop('checked', isSubClass);
+			$("#propertyLanguage", dialog).val(language);
+			$("#propertyIsSubclass", dialog).prop('checked', isSubClass);
+			$("#propertyIsProvenance", dialog).prop('checked', isProvenance);
 			
 			div.append(dialog);
 			dialog.show();

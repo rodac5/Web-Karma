@@ -390,6 +390,8 @@ public class GraphBuilder {
 			}
 			node.getLabel().setNs(label.getNs());
 			node.getLabel().setPrefix(label.getPrefix());
+			node.getLabel().setRdfsLabel(label.getRdfsLabel());
+			node.getLabel().setRdfsComment(label.getRdfsComment());
 		}
 		
 		if(node.isForced())
@@ -1455,12 +1457,12 @@ public class GraphBuilder {
 				System.out.println(s);
 			}
 			Alignment al = new Alignment(mgr);
-			ColumnNode c1 = al.addColumnNode("h1", "c1", null);
-			ColumnNode c2 = al.addColumnNode("h2", "c2", null);
+			ColumnNode c1 = al.addColumnNode("h1", "c1", null, null);
+			ColumnNode c2 = al.addColumnNode("h2", "c2", null, null);
 			InternalNode n1 = al.addInternalNode(new Label("http://example.com/layout/C01_"));
 			InternalNode n2 = al.addInternalNode(new Label("http://example.com/layout/C02_"));
-			al.addDataPropertyLink(n1, c1, new Label("http://example.com/layout/d1"));
-			al.addDataPropertyLink(n2, c2, new Label("http://example.com/layout/d2"));
+			al.addDataPropertyLink(n1, c1, new Label("http://example.com/layout/d1"), false);
+			al.addDataPropertyLink(n2, c2, new Label("http://example.com/layout/d2"), false);
 			al.align();
 			System.out.println(GraphUtil.labeledGraphToString(al.getSteinerTree()));
 		} else {

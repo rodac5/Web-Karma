@@ -78,9 +78,15 @@ public class ClearSelectionCommand extends WorksheetSelectionCommand {
 				}
 			}
 		}
+		
+		worksheet.getMetadataContainer().getColumnMetadata().removeSelectionPythonCode(hTable.getId());
 		WorksheetUpdateFactory.detectSelectionStatusChange(worksheetId, workspace, this);
-		UpdateContainer uc = WorksheetUpdateFactory.createWorksheetHierarchicalAndCleaningResultsUpdates(worksheetId, superSel, workspace.getContextId());
-		return uc;
+		if(!this.isExecutedInBatch()) {
+			UpdateContainer uc = WorksheetUpdateFactory.createWorksheetHierarchicalAndCleaningResultsUpdates(worksheetId, superSel, workspace.getContextId());
+			return uc;
+		} else {
+			return new UpdateContainer();
+		}
 	}
 
 	@Override

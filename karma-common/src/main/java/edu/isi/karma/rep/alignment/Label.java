@@ -88,6 +88,14 @@ public class Label implements Serializable {
 		this.prefix = prefix;
 	}
 
+	public void setRdfsLabel(String label) {
+		this.rdfsLabel = label;
+	}
+	
+	public void setRdfsComment(String comment) {
+		this.rdfsComment = comment;
+	}
+	
 	public String getUri() {
 		return uri;
 	}
@@ -119,11 +127,14 @@ public class Label implements Serializable {
 	}
 
 	public String getDisplayName() {
-
+		String name;
 		if (getPrefix() == null) {
-			return getUri();
+			name = getUri();
 		} else
-			return prefix + ":" + getLocalName();
+			name = prefix + ":" + getLocalName();
+		if(name == null || name.length() == 0)
+			name = uri;
+		return name;
 	}
 
 	public String getRdfsLabel() {
