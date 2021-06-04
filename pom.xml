@@ -70,7 +70,7 @@
 	  <jdom.version>1.1.2</jdom.version>
 
 	  <gson.version>2.2.2</gson.version>
-	  <httpcomponents.version>4.5.2</httpcomponents.version>
+	  <httpcomponents.version>4.5.13</httpcomponents.version>
 	  <guava.version>13.0.1</guava.version>
 	  <spring.version>3.2.4.RELEASE</spring.version>
 
